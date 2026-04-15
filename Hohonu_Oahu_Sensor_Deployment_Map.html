@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Oahu Sensor Deployment Map — Hohonu</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'Montserrat', sans-serif; background: #f0f0f0; height: 100vh; display: flex; flex-direction: column; }
+
+header { background: #160033; padding: 11px 20px; display: flex; align-items: center; justify-content: space-between; border-bottom: 3px solid #7611FF; flex-shrink: 0; }
+header h1 { color: #F6F2F8; font-size: 15px; font-weight: 700; }
+header .sub { color: #FF725D; font-size: 11px; font-weight: 600; }
+
+.layout { display: flex; flex: 1; overflow: hidden; }
+#map { flex: 1; }
+
+.sidebar { width: 295px; background: #fff; border-left: 1px solid #ddd; display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+
+.stats { background: #160033; padding: 10px 14px; display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; flex-shrink: 0; }
+.stat { text-align: center; }
+.stat-n { color: #FF725D; font-size: 18px; font-weight: 700; line-height: 1; }
+.stat-l { color: #F6F2F8; font-size: 8px; text-transform: uppercase; letter-spacing: 0.4px; margin-top: 2px; }
+
+.ctrl-panel { padding: 10px 14px; border-bottom: 1px solid #eee; flex-shrink: 0; }
+.ctrl-row { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
+.ctrl-row:last-child { margin-bottom: 0; }
+.ctrl-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: #888; width: 58px; flex-shrink: 0; }
+
+.bm-btns { display: flex; gap: 5px; flex: 1; }
+.bm-btn { flex: 1; padding: 5px 6px; font-size: 10px; font-weight: 600; cursor: pointer; border: 1.5px solid #ddd; border-radius: 5px; background: #f5f5f5; color: #666; font-family: 'Montserrat', sans-serif; transition: all 0.15s; }
+.bm-btn.active { background: #160033; color: #fff; border-color: #7611FF; }
+
+.layer-checks { display: flex; flex-direction: column; gap: 5px; flex: 1; }
+.layer-row { display: flex; align-items: center; gap: 7px; cursor: pointer; }
+.layer-row input { cursor: pointer; accent-color: #7611FF; width: 13px; height: 13px; }
+.layer-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.layer-lbl { font-size: 11px; color: #333; flex: 1; }
+.layer-ct { font-size: 10px; font-weight: 700; color: #aaa; }
+
+.add-section { padding: 10px 14px; border-bottom: 1px solid #eee; flex-shrink: 0; }
+.add-btn { width: 100%; padding: 8px; font-family: 'Montserrat', sans-serif; font-size: 11px; font-weight: 700; cursor: pointer; border: 2px solid #E65100; border-radius: 7px; background: #fff; color: #E65100; transition: all 0.15s; }
+.add-btn.active { background: #E65100; color: #fff; }
+.add-hint { font-size: 10px; color: #E65100; margin-top: 5px; display: none; text-align: center; }
+.add-hint.show { display: block; }
+
+.filter-tabs { display: flex; border-bottom: 2px solid #eee; flex-shrink: 0; }
+.tab { flex: 1; padding: 8px 4px; font-size: 10px; font-weight: 700; text-align: center; cursor: pointer; color: #aaa; border-bottom: 2px solid transparent; margin-bottom: -2px; transition: all 0.15s; text-transform: uppercase; letter-spacing: 0.3px; }
+.tab.active { color: #160033; border-bottom-color: #7611FF; }
+
+.site-list { flex: 1; overflow-y: auto; }
+
+.site-item { padding: 8px 14px; border-bottom: 1px solid #f0f0f0; cursor: pointer; transition: background 0.12s; }
+.site-item:hover { background: #f5f0ff; }
+.site-top { display: flex; align-items: flex-start; gap: 8px; }
+.site-dot-wrap { padding-top: 3px; flex-shrink: 0; }
+.site-info { flex: 1; min-width: 0; }
+.site-name { font-size: 11px; font-weight: 700; color: #160033; line-height: 1.3; }
+.site-id { font-size: 9px; color: #aaa; margin-top: 1px; }
+.site-loc { font-size: 10px; color: #777; margin-top: 1px; }
+.site-coords { font-size: 9px; color: #bbb; margin-top: 2px; font-style: italic; }
+.site-last { font-size: 9px; font-weight: 700; color: #1565C0; margin-top: 2px; }
+
+/* Reactivation toggle */
+.reactiv-row { display: flex; align-items: center; justify-content: space-between; margin-top: 6px; padding-top: 5px; border-top: 1px solid #f0f0f0; }
+.reactiv-label { font-size: 10px; color: #888; }
+.reactiv-label.on { color: #E65100; font-weight: 700; }
+.toggle-sw { position: relative; display: inline-block; width: 34px; height: 17px; }
+.toggle-sw input { opacity: 0; width: 0; height: 0; }
+.toggle-sl { position: absolute; cursor: pointer; inset: 0; background: #ddd; border-radius: 17px; transition: .2s; }
+.toggle-sl::before { content: ''; position: absolute; height: 13px; width: 13px; left: 2px; bottom: 2px; background: white; border-radius: 50%; transition: .2s; }
+.toggle-sw input:checked + .toggle-sl { background: #E65100; }
+.toggle-sw input:checked + .toggle-sl::before { transform: translateX(17px); }
+
+/* Proposed pin actions */
+.pin-actions { display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+.pin-edit-btn { font-size: 10px; color: #7611FF; cursor: pointer; background: none; border: none; font-family: 'Montserrat', sans-serif; padding: 0; }
+.pin-del-btn  { font-size: 10px; color: #e53935; cursor: pointer; background: none; border: none; font-family: 'Montserrat', sans-serif; padding: 0; margin-left: auto; }
+.pin-edit-input { width: 100%; padding: 3px 6px; border: 1px solid #7611FF; border-radius: 4px; font-family: 'Montserrat', sans-serif; font-size: 11px; margin-top: 3px; }
+
+.empty-msg { font-size: 11px; color: #bbb; text-align: center; padding: 24px 14px; line-height: 1.6; }
+
+.export-row { padding: 8px 14px; border-top: 1px solid #eee; flex-shrink: 0; display: block; }
+.export-btn { width: 100%; padding: 7px; font-family: 'Montserrat', sans-serif; font-size: 10px; font-weight: 600; cursor: pointer; border: 1px solid #ddd; border-radius: 5px; background: #f5f5f5; color: #555; }
+
+/* Popup */
+.leaflet-popup-content-wrapper { border-radius: 8px; font-family: 'Montserrat', sans-serif; }
+.leaflet-popup-content { margin: 12px 14px; min-width: 190px; }
+.pop-badge { display: inline-block; font-size: 9px; font-weight: 700; padding: 2px 8px; border-radius: 10px; color: #fff; margin-bottom: 6px; }
+.pop-title { font-weight: 700; font-size: 13px; color: #160033; margin-bottom: 4px; line-height: 1.3; }
+.pop-row { font-size: 11px; color: #444; margin-bottom: 3px; }
+.pop-row b { color: #160033; }
+.pop-coords { font-size: 10px; color: #aaa; margin-top: 5px; font-style: italic; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Oahu Sensor Deployment Map</h1>
+  <span class="sub">Hohonu</span>
+</header>
+
+<div class="layout">
+  <div id="map"></div>
+
+  <div class="sidebar">
+    <div class="stats">
+      <div class="stat"><div class="stat-n">38</div><div class="stat-l">Active USGS</div></div>
+      <div class="stat"><div class="stat-n">48</div><div class="stat-l">Inactive / Decomm.</div></div>
+      <div class="stat"><div class="stat-n" id="s-new">0</div><div class="stat-l">Proposed New</div></div>
+    </div>
+
+    <div class="ctrl-panel">
+      <div class="ctrl-row">
+        <span class="ctrl-label">Basemap</span>
+        <div class="bm-btns">
+          <button id="btn-streets" class="bm-btn active" onclick="setBasemap('streets')">Streets</button>
+          <button id="btn-topo" class="bm-btn" onclick="setBasemap('topo')">Topo</button>
+          <button id="btn-satellite" class="bm-btn" onclick="setBasemap('satellite')">Satellite</button>
+        </div>
+      </div>
+      <div class="ctrl-row" style="align-items:flex-start">
+        <span class="ctrl-label" style="padding-top:2px">Layers</span>
+        <div class="layer-checks">
+          <label class="layer-row"><input type="checkbox" checked onchange="toggleLayer('active',this.checked)"><div class="layer-dot" style="background:#2E7D32"></div><span class="layer-lbl">Active USGS</span><span class="layer-ct">38</span></label>
+          <label class="layer-row"><input type="checkbox" checked onchange="toggleLayer('inactive',this.checked)"><div class="layer-dot" style="background:#1565C0"></div><span class="layer-lbl">Inactive / Decommissioned</span><span class="layer-ct">48</span></label>
+          <label class="layer-row"><input type="checkbox" checked onchange="toggleLayer('proposed',this.checked)"><div class="layer-dot" style="background:#E65100"></div><span class="layer-lbl">Proposed New Deployments</span><span class="layer-ct" id="lct-new">0</span></label>
+        </div>
+      </div>
+    </div>
+
+    <div class="add-section">
+      <button class="add-btn" id="addBtn" onclick="toggleAddMode()">＋ Add Proposed Deployment</button>
+      <div class="add-hint" id="addHint">Click on a stream to place a pin</div>
+    </div>
+
+    <div class="filter-tabs">
+      <div class="tab active" onclick="setTab('active')"   id="tab-active">Active</div>
+      <div class="tab"        onclick="setTab('inactive')" id="tab-inactive">Inactive</div>
+      <div class="tab"        onclick="setTab('proposed')" id="tab-proposed">Proposed</div>
+    </div>
+
+    <div class="site-list" id="siteList"></div>
+    <div class="export-row" id="exportRow">
+      <button class="export-btn" onclick="exportJSON()" style="margin-bottom:5px">⬇ Save pins (JSON)</button>
+      <button class="export-btn" onclick="document.getElementById('importFile').click()">⬆ Load pins (JSON)</button>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importJSON(this)">
+      <button class="export-btn" onclick="exportCSV()" style="margin-top:5px;color:#888">⬇ Export CSV</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Map ──────────────────────────────────────────────────────────────────────
+const map = L.map('map', { center: [21.47, -157.97], zoom: 10 });
+
+// Basemaps
+const baseLayers = {
+  streets: L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© OpenStreetMap © CARTO', maxZoom: 19
+  }),
+  topo: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '© Esri, HERE, Garmin', maxZoom: 19
+  }),
+  satellite: L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+    attribution: '© Esri, Maxar', maxZoom: 19
+  })
+};
+baseLayers.streets.addTo(map);
+
+let currentBase = 'streets';
+function setBasemap(name) {
+  if (name === currentBase) return;
+  map.removeLayer(baseLayers[currentBase]);
+  baseLayers[name].addTo(map);
+  currentBase = name;
+  document.querySelectorAll('.bm-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('btn-' + name).classList.add('active');
+  [layers.active, layers.inactive, layers.proposed].forEach(l => map.hasLayer(l) && l.bringToFront());
+}
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+const ACTIVE = [
+  {id:"16200000",name:"NF Kaukonahua abv RB",loc:"nr Wahiawa",lat:21.51627778,lon:-157.9453056},
+  {id:"16208000",name:"SF Kaukonahua at E pump",loc:"nr Wahiawa",lat:21.48880556,lon:-157.9960556},
+  {id:"16210100",name:"Wahiawa Ditch",loc:"at Wahiawa",lat:21.50055556,lon:-158.0510278},
+  {id:"16210200",name:"Kaukonahua blw Wahiawa Reservoir",loc:"Wahiawa",lat:21.50025,lon:-158.0510833},
+  {id:"16210500",name:"Kaukonahua Str",loc:"at Waialua",lat:21.56530556,lon:-158.120361},
+  {id:"16211600",name:"Makaha Stream",loc:"nr Makaha",lat:21.50158333,lon:-158.1801667},
+  {id:"16211800",name:"Kaupuni Stream",loc:"nr Waianae",lat:21.46906944,lon:-158.1544694},
+  {id:"16212490",name:"Honouliuli at H-1 Freeway",loc:"nr Waipahu",lat:21.37813889,lon:-158.0447778},
+  {id:"16212601",name:"Waikele at Wheeler Field",loc:"Wahiawa",lat:21.47230556,lon:-158.0444722},
+  {id:"16213000",name:"Waikele Str",loc:"at Waipahu",lat:21.38347222,lon:-158.0109167},
+  {id:"16226200",name:"N Halawa Str",loc:"nr Honolulu",lat:21.382,lon:-157.9033333},
+  {id:"16226400",name:"N Halawa Str nr Quarantine Stn",loc:"Halawa",lat:21.37188889,lon:-157.9127222},
+  {id:"16226700",name:"South Halawa Stream",loc:"nr H-3 Freeway",lat:21.37067778,lon:-157.9100222},
+  {id:"16227500",name:"Moanalua Stream",loc:"nr Kaneohe",lat:21.38805556,lon:-157.848611},
+  {id:"16229000",name:"Kalihi Str",loc:"nr Honolulu",lat:21.3633611,lon:-157.8444444},
+  {id:"16238000",name:"Makiki Stream",loc:"at King St bridge",lat:21.29663889,lon:-157.83675},
+  {id:"16238500",name:"Waihi Stream",loc:"at Honolulu",lat:21.3283611,lon:-157.800861},
+  {id:"16240500",name:"Waiakeakua Str",loc:"at Honolulu",lat:21.32822222,lon:-157.799611},
+  {id:"16241600",name:"Manoa Stream",loc:"at Woodlawn Drive",lat:21.30844444,lon:-157.8095},
+  {id:"16244000",name:"Pukele Stream",loc:"nr Honolulu",lat:21.30666667,lon:-157.7883333},
+  {id:"16247100",name:"Manoa-Palolo Canal",loc:"at Moiliili",lat:21.28652778,lon:-157.8185556},
+  {id:"16249000",name:"Waimanalo Str",loc:"at Waimanalo",lat:21.34997222,lon:-157.7289167},
+  {id:"16254000",name:"Makawao Str",loc:"nr Kailua",lat:21.3595,lon:-157.7621667},
+  {id:"16264600",name:"Kawainui Marsh",loc:"nr levee",lat:21.39416667,lon:-157.749361},
+  {id:"16265000",name:"Kawa Str",loc:"at Kaneohe",lat:21.40575,lon:-157.7905},
+  {id:"16274100",name:"Kaneohe Str",loc:"blw Kamehameha Hwy",lat:21.41180556,lon:-157.798111},
+  {id:"16275000",name:"Heeia Stream",loc:"at Haiku Valley",lat:21.40920833,lon:-157.8232306},
+  {id:"16279200",name:"Heeia Stream",loc:"at Haiku Plantations Dr",lat:21.41741667,lon:-157.8163889},
+  {id:"16283200",name:"Kahaluu Str",loc:"nr Ahuimanu",lat:21.43872222,lon:-157.843861},
+  {id:"16284200",name:"Waihee Str",loc:"nr Kahaluu",lat:21.44816667,lon:-157.856611},
+  {id:"16294100",name:"Waiahole Stream",loc:"above Kamehameha Hwy",lat:21.48202778,lon:-157.8458889},
+  {id:"16294900",name:"Waikane Str",loc:"at Waikane",lat:21.49708333,lon:-157.8629722},
+  {id:"16296500",name:"Kahana Str",loc:"nr Kahana",lat:21.5406111,lon:-157.8825556},
+  {id:"16301050",name:"Punaluu Str",loc:"abv Ditch Intake",lat:21.55638889,lon:-157.8988889},
+  {id:"16304200",name:"Kaluanui Stream",loc:"nr Punaluu",lat:21.5861111,lon:-157.9080556},
+  {id:"16325000",name:"Kamananui Str",loc:"at Pupukea Mil Rd",lat:21.62055556,lon:-158.015},
+  {id:"16330000",name:"Kamananui Str",loc:"at Maunawai",lat:21.63547222,lon:-158.0545833},
+  {id:"16345000",name:"Opaeula Str",loc:"nr Wahiawa",lat:21.56233333,lon:-158.00025},
+];
+
+const INACTIVE = [
+  {id:"16204000",name:"NF Kaukonahua Stream",loc:"nr Wahiawa",last:"2022",lat:21.5120861,lon:-157.9861},
+  {id:"16208500",name:"R BR S F Kaukonahua Str",loc:"nr Wahiawa",last:"1976",lat:21.49601389,lon:-157.9814139},
+  {id:"16211000",name:"Poamoho Stream",loc:"nr Wahiawa",last:"1974",lat:21.52018333,lon:-157.9791917},
+  {id:"16212480",name:"Honouliuli Stream Trib",loc:"nr Waipahu",last:"2021",lat:21.40183333,lon:-158.0669167},
+  {id:"16212800",name:"Kipapa Str",loc:"nr Wahiawa",last:"2011",lat:21.4671111,lon:-157.9587778},
+  {id:"16216000",name:"Waiawa Str",loc:"nr Pearl City",last:"2012",lat:21.39569444,lon:-157.9783056},
+  {id:"16219000",name:"Waiau Tunnel",loc:"nr Pearl City",last:"2012",lat:21.38780556,lon:-157.9601389},
+  {id:"16223000",name:"Waimalu Str",loc:"nr Aiea",last:"2023",lat:21.39352778,lon:-157.94625},
+  {id:"16224500",name:"Kalauao Str",loc:"at Moanalua Rd, Aiea",last:"2012",lat:21.3821111,lon:-157.9370278},
+  {id:"16225800",name:"N Halawa Str",loc:"nr Kaneohe",last:"1999",lat:21.4061111,lon:-157.8655556},
+  {id:"16225900",name:"N Halawa Str at Bridge 8",loc:"nr Halawa",last:"2009",lat:21.39555556,lon:-157.8856944},
+  {id:"16226000",name:"N Halawa Str",loc:"nr Aiea",last:"2006",lat:21.39295833,lon:-157.8908639},
+  {id:"16227100",name:"Halawa Stream",loc:"below H-1",last:"2022",lat:21.36823199,lon:-157.92975809},
+  {id:"16227700",name:"Moanalua Stream Trib",loc:"nr Kaneohe",last:"1978",lat:21.38767778,lon:-157.8453083},
+  {id:"16228000",name:"Moanalua Str",loc:"nr Honolulu",last:"2001",lat:21.3782361,lon:-157.8700306},
+  {id:"16228900",name:"Kalihi Str",loc:"nr Kaneohe",last:"2001",lat:21.37323333,lon:-157.8228083},
+  {id:"16229300",name:"Kalihi Str",loc:"at Kalihi",last:"2005",lat:21.33823889,lon:-157.8739194},
+  {id:"16232000",name:"Nuuanu Stream",loc:"bl Res 2 Wasteway",last:"2024",lat:21.34608333,lon:-157.8249167},
+  {id:"16242500",name:"Manoa Str",loc:"at Kanewai Field",last:"2016",lat:21.29322222,lon:-157.8127222},
+  {id:"16246000",name:"Waiomao Stream",loc:"nr Honolulu",last:"2014",lat:21.3061111,lon:-157.7838889},
+  {id:"16247000",name:"Palolo Stream",loc:"nr Honolulu",last:"2023",lat:21.28927778,lon:-157.8046389},
+  {id:"16247130",name:"Ala Wai Canal",loc:"at Ala Wai Elem School",last:"2004",lat:21.28462778,lon:-157.8280889},
+  {id:"16247140",name:"Ala Wai Canal",loc:"at McCully St bridge",last:"2003",lat:21.28851667,lon:-157.832811},
+  {id:"16247550",name:"Wailupe Gulch",loc:"at E Hind Dr Bridge",last:"2023",lat:21.28532919,lon:-157.75406083},
+  {id:"16260500",name:"Maunawili Stream",loc:"at Hwy 61 nr Kailua",last:"2000",lat:21.37767778,lon:-157.760586},
+  {id:"16264690",name:"Kawainui Stream",loc:"nr Kailua",last:"2019",lat:21.3928611,lon:-157.7741944},
+  {id:"16264850",name:"Kawainui Canal",loc:"at Oneawa St",last:"2006",lat:21.40906389,lon:-157.7541972},
+  {id:"16265600",name:"RB Kamooalii Str",loc:"nr Kaneohe",last:"1998",lat:21.38628889,lon:-157.7928083},
+  {id:"16266000",name:"Kamooalii Stream",loc:"nr Kaneohe",last:"1990",lat:21.38573333,lon:-157.7986417},
+  {id:"16267500",name:"Hooleinaiwa Str",loc:"abv Kamooalii conf.",last:"1998",lat:21.38434444,lon:-157.8025306},
+  {id:"16270500",name:"Kamooalii Stream bl Kuou",loc:"nr Kaneohe",last:"1976",lat:21.39166667,lon:-157.8044444},
+  {id:"16270900",name:"Luluku Str",loc:"nr Kaneohe",last:"2021",lat:21.39177778,lon:-157.8094778},
+  {id:"16272200",name:"Kamooalii Str blw Luluku",loc:"nr Kaneohe",last:"2025",lat:21.39338889,lon:-157.80375},
+  {id:"16273900",name:"Kamooalii Stream",loc:"at Kaneohe",last:"1991",lat:21.4110111,lon:-157.8008639},
+  {id:"16273950",name:"SF Kapunahala Str",loc:"at Kaneohe",last:"1998",lat:21.40267778,lon:-157.8058639},
+  {id:"16274950",name:"Heeia Stream DS of Haiku Tunnel",loc:"Kaneohe",last:"2023",lat:21.40667222,lon:-157.8312083},
+  {id:"16278500",name:"Iolekaa Stream US of Heeia",loc:"Kaneohe",last:"2023",lat:21.41819722,lon:-157.823386},
+  {id:"16283000",name:"Kahaluu Stream",loc:"nr Heeia",last:"1980",lat:21.43527778,lon:-157.8530556},
+  {id:"16283500",name:"Kahaluu Stream",loc:"at Kahaluu",last:"1973",lat:21.4537861,lon:-157.83475},
+  {id:"16283600",name:"SF Waihee Str",loc:"nr Heeia",last:"1997",lat:21.44323056,lon:-157.86725},
+  {id:"16283700",name:"NF Waihee Stream",loc:"nr Heeia",last:"1997",lat:21.44350833,lon:-157.8689167},
+  {id:"16284000",name:"Waihee Stream",loc:"nr Heeia",last:"1982",lat:21.44711944,lon:-157.8578056},
+  {id:"16284500",name:"Waihee Stream",loc:"at Kahaluu",last:"1981",lat:21.45573333,lon:-157.8378056},
+  {id:"16303000",name:"Punaluu Str",loc:"nr Punaluu",last:"2009",lat:21.55638889,lon:-157.8988889},
+  {id:"16308990",name:"Malaekahana Stream",loc:"nr Laie",last:"1971",lat:21.63294722,lon:-157.9619667},
+  {id:"16343000",name:"Helemano Stream",loc:"at Haleiwa",last:"1982",lat:21.57461944,lon:-158.1005778},
+  {id:"16343100",name:"Helemano Stream",loc:"at Joseph Leong Hwy",last:"2020",lat:21.57868889,lon:-158.1027944},
+  {id:"16350100",name:"Opaeula Stream",loc:"at Joseph Leong Hwy",last:"2013",lat:21.5804611,lon:-158.1026028},
+];
+
+// ── Icons ─────────────────────────────────────────────────────────────────────
+function dotSVG(fill, r=7) {
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${r*2+3}" height="${r*2+3}">
+    <circle cx="${r+1.5}" cy="${r+1.5}" r="${r}" fill="${fill}" stroke="white" stroke-width="1.5"/>
+  </svg>`;
+}
+function splitSVG(r=7) {
+  const d = r*2+3, c = r+1.5;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${d}" height="${d}">
+    <circle cx="${c}" cy="${c}" r="${r}" fill="#1565C0" stroke="white" stroke-width="1.5"/>
+    <path d="M${c} ${c-r} A${r} ${r} 0 0 1 ${c} ${c+r} Z" fill="#E65100"/>
+  </svg>`;
+}
+
+function makeIcon(svgStr, r=7) {
+  const s = r*2+3;
+  return L.divIcon({ html: svgStr, className: '', iconSize: [s,s], iconAnchor: [s/2,s/2], popupAnchor: [0,-s/2] });
+}
+
+// ── Layers ────────────────────────────────────────────────────────────────────
+const layers = { active: L.layerGroup(), inactive: L.layerGroup(), proposed: L.layerGroup() };
+
+function popupHTML(badge, badgeColor, d) {
+  let h = `<span class="pop-badge" style="background:${badgeColor}">${badge}</span>`;
+  h += `<div class="pop-title">${d.name}</div>`;
+  if (d.loc)  h += `<div class="pop-row"><b>Location:</b> ${d.loc}</div>`;
+  if (d.id)   h += `<div class="pop-row"><b>USGS ID:</b> ${d.id}</div>`;
+  if (d.last) h += `<div class="pop-row"><b>Last Active:</b> ${d.last}</div>`;
+  h += `<div class="pop-coords">${d.lat.toFixed(5)}, ${d.lon.toFixed(5)}</div>`;
+  return h;
+}
+
+// Active markers
+const activeMarkers = ACTIVE.map(d => {
+  const m = L.marker([d.lat, d.lon], { icon: makeIcon(dotSVG('#2E7D32')) })
+    .bindPopup(popupHTML('Active USGS','#2E7D32',d));
+  m.addTo(layers.active);
+  return { ...d, marker: m };
+});
+
+// Inactive markers — use divIcon so we can swap to split icon
+const reactivateSet = new Set();
+const inactiveMarkers = INACTIVE.map(d => {
+  const m = L.marker([d.lat, d.lon], { icon: makeIcon(dotSVG('#1565C0')) })
+    .bindPopup(popupHTML('Inactive / Decommissioned','#1565C0',d));
+  m.addTo(layers.inactive);
+  return { ...d, marker: m };
+});
+
+function setReactivate(id, on) {
+  const item = inactiveMarkers.find(m => m.id === id);
+  if (!item) return;
+  if (on) {
+    reactivateSet.add(id);
+    item.marker.setIcon(makeIcon(splitSVG(), 7));
+  } else {
+    reactivateSet.delete(id);
+    item.marker.setIcon(makeIcon(dotSVG('#1565C0')));
+  }
+  syncProposedCount();
+  renderList();
+  savePins();
+}
+
+Object.values(layers).forEach(l => l.addTo(map));
+
+function toggleLayer(name, on) {
+  on ? layers[name].addTo(map) : map.removeLayer(layers[name]);
+}
+
+// ── Proposed pins ─────────────────────────────────────────────────────────────
+const proposedPins = [];
+let editingIdx = null;
+
+function addProposed(lat, lng, name) {
+  const m = L.marker([lat, lng], { icon: makeIcon(dotSVG('#E65100', 8)) })
+    .bindPopup(`<span class="pop-badge" style="background:#E65100">Proposed Deployment</span>
+      <div class="pop-title">${name}</div>
+      <div class="pop-coords">${lat.toFixed(5)}, ${lng.toFixed(5)}</div>`);
+  m.addTo(layers.proposed);
+  proposedPins.push({ name, lat, lon: lng, marker: m });
+  syncProposedCount();
+  renderList();
+  savePins();
+}
+
+function syncProposedCount() {
+  const n = proposedPins.length + reactivateSet.size;
+  document.getElementById('s-new').textContent = n;
+  document.getElementById('lct-new').textContent = n;
+}
+
+function removeProposed(i) {
+  map.removeLayer(proposedPins[i].marker);
+  proposedPins.splice(i, 1);
+  syncProposedCount();
+  renderList();
+  savePins();
+}
+
+function renameProposed(i, newName) {
+  proposedPins[i].name = newName;
+  proposedPins[i].marker.setPopupContent(
+    `<span class="pop-badge" style="background:#E65100">Proposed Deployment</span>
+     <div class="pop-title">${newName}</div>
+     <div class="pop-coords">${proposedPins[i].lat.toFixed(5)}, ${proposedPins[i].lon.toFixed(5)}</div>`
+  );
+  renderList();
+  savePins();
+}
+
+// ── Add mode ──────────────────────────────────────────────────────────────────
+let addMode = false;
+function toggleAddMode() {
+  addMode = !addMode;
+  const btn = document.getElementById('addBtn');
+  const hint = document.getElementById('addHint');
+  btn.classList.toggle('active', addMode);
+  btn.textContent = addMode ? '✕ Cancel' : '＋ Add Proposed Deployment';
+  hint.classList.toggle('show', addMode);
+  map.getContainer().style.cursor = addMode ? 'crosshair' : '';
+}
+
+map.on('click', function(e) {
+  if (!addMode) return;
+  const { lat, lng } = e.latlng;
+  const name = prompt(`Name this site:\n(${lat.toFixed(5)}, ${lng.toFixed(5)})`, 'New Stream Site');
+  if (name === null) { toggleAddMode(); return; }
+  addProposed(lat, lng, name || 'Unnamed Site');
+  toggleAddMode();
+  setTab('proposed');
+});
+
+// ── Sidebar ───────────────────────────────────────────────────────────────────
+let currentTab = 'active';
+
+function setTab(t) {
+  currentTab = t;
+  ['active','inactive','proposed'].forEach(id =>
+    document.getElementById('tab-'+id).classList.toggle('active', id === t));
+  renderList();
+}
+
+function flyTo(lat, lon, zoom, marker) {
+  map.flyTo([lat, lon], zoom, { duration: 0.8 });
+  if (marker) setTimeout(() => marker.openPopup(), 850);
+}
+
+function renderList() {
+  const list = document.getElementById('siteList');
+
+  if (currentTab === 'active') {
+    list.innerHTML = activeMarkers.map(d => `
+      <div class="site-item" onclick="flyTo(${d.lat},${d.lon},14,activeMarkers.find(m=>m.id==='${d.id}').marker)">
+        <div class="site-top">
+          <div class="site-dot-wrap">${dotSVG('#2E7D32',5)}</div>
+          <div class="site-info">
+            <div class="site-name">${d.name}</div>
+            <div class="site-id">${d.id}</div>
+            <div class="site-loc">${d.loc}</div>
+            <div class="site-coords">${d.lat.toFixed(5)}, ${d.lon.toFixed(5)}</div>
+          </div>
+        </div>
+      </div>`).join('');
+
+  } else if (currentTab === 'inactive') {
+    list.innerHTML = inactiveMarkers.map(d => {
+      const isR = reactivateSet.has(d.id);
+      const dotHtml = isR ? splitSVG(5) : dotSVG('#1565C0',5);
+      return `
+      <div class="site-item">
+        <div class="site-top" onclick="flyTo(${d.lat},${d.lon},14,inactiveMarkers.find(m=>m.id==='${d.id}').marker)" style="cursor:pointer">
+          <div class="site-dot-wrap">${dotHtml}</div>
+          <div class="site-info">
+            <div class="site-name">${d.name}</div>
+            <div class="site-id">${d.id}</div>
+            <div class="site-loc">${d.loc}</div>
+            <div class="site-coords">${d.lat.toFixed(5)}, ${d.lon.toFixed(5)}</div>
+            <div class="site-last">Last active: ${d.last}</div>
+          </div>
+        </div>
+        <div class="reactiv-row">
+          <span class="reactiv-label ${isR?'on':''}">${isR ? 'Reactivate ✓' : 'Mark to reactivate'}</span>
+          <label class="toggle-sw">
+            <input type="checkbox" ${isR?'checked':''} onchange="setReactivate('${d.id}', this.checked)">
+            <span class="toggle-sl"></span>
+          </label>
+        </div>
+      </div>`}).join('');
+
+  } else {
+    const reactItems = inactiveMarkers.filter(m => reactivateSet.has(m.id));
+    if (!proposedPins.length && !reactItems.length) {
+      list.innerHTML = '<div class="empty-msg">No proposed deployments yet.<br><br>Switch to Satellite, find a stream, then use the button above to place a pin.<br><br>Or toggle "Reactivate" on any inactive gauge.</div>';
+      return;
+    }
+    let html = '';
+    if (reactItems.length) {
+      html += `<div style="padding:6px 14px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#1565C0;background:#E3F2FD;border-bottom:1px solid #eee">Reactivations (${reactItems.length})</div>`;
+      html += reactItems.map(d => `
+        <div class="site-item" onclick="flyTo(${d.lat},${d.lon},14,inactiveMarkers.find(m=>m.id==='${d.id}').marker)" style="background:#F8FBFF">
+          <div class="site-top">
+            <div class="site-dot-wrap">${splitSVG(5)}</div>
+            <div class="site-info">
+              <div class="site-name">${d.name}</div>
+              <div class="site-id">${d.id}</div>
+              <div class="site-loc">${d.loc}</div>
+              <div class="site-coords">${d.lat.toFixed(5)}, ${d.lon.toFixed(5)}</div>
+              <div class="site-last">Last active: ${d.last}</div>
+            </div>
+          </div>
+        </div>`).join('');
+    }
+    if (proposedPins.length) {
+      html += `<div style="padding:6px 14px 4px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.4px;color:#E65100;background:#FFF3E0;border-bottom:1px solid #eee">New Deployments (${proposedPins.length})</div>`;
+    }
+    if (proposedPins.length) {
+      html += proposedPins.map((p, i) => {
+      if (editingIdx === i) {
+        return `
+        <div class="site-item">
+          <div class="site-top">
+            <div class="site-dot-wrap">${dotSVG('#E65100',5)}</div>
+            <div class="site-info">
+              <input class="pin-edit-input" id="edit-input-${i}" value="${p.name}"
+                onkeydown="if(event.key==='Enter'){saveEdit(${i})}" autofocus>
+              <div class="site-coords">${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</div>
+            </div>
+          </div>
+          <div class="pin-actions">
+            <button class="pin-edit-btn" onclick="saveEdit(${i})">✓ Save</button>
+            <button class="pin-edit-btn" onclick="editingIdx=null;renderList()" style="color:#aaa">Cancel</button>
+            <button class="pin-del-btn" onclick="removeProposed(${i})">✕ Remove</button>
+          </div>
+        </div>`;
+      }
+      return `
+      <div class="site-item">
+        <div class="site-top" onclick="flyTo(${p.lat},${p.lon},15,proposedPins[${i}].marker)" style="cursor:pointer">
+          <div class="site-dot-wrap">${dotSVG('#E65100',5)}</div>
+          <div class="site-info">
+            <div class="site-name">${p.name}</div>
+            <div class="site-coords">${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</div>
+          </div>
+        </div>
+        <div class="pin-actions">
+          <button class="pin-edit-btn" onclick="event.stopPropagation();editingIdx=${i};renderList()">✎ Rename</button>
+          <button class="pin-del-btn" onclick="event.stopPropagation();removeProposed(${i})">✕ Remove</button>
+        </div>
+      </div>`;
+      }).join('');
+    }
+    list.innerHTML = html;
+    if (editingIdx !== null) {
+      setTimeout(() => {
+        const el = document.getElementById(`edit-input-${editingIdx}`);
+        if (el) { el.focus(); el.select(); }
+      }, 50);
+    }
+  }
+}
+
+function saveEdit(i) {
+  const el = document.getElementById(`edit-input-${i}`);
+  if (el) renameProposed(i, el.value.trim() || proposedPins[i].name);
+  editingIdx = null;
+  renderList();
+}
+
+// ── Persistence ───────────────────────────────────────────────────────────────
+const STORAGE_KEY = 'hohonu_oahu_pins';
+let _saveReady = false;
+
+function savePins() {
+  if (!_saveReady) return;
+  const data = {
+    proposed: proposedPins.map(p => ({ name: p.name, lat: p.lat, lon: p.lon })),
+    reactivate: [...reactivateSet]
+  };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); } catch(e) {}
+}
+
+function loadSavedPins() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    (data.proposed || []).forEach(p => addProposed(p.lat, p.lon, p.name));
+    (data.reactivate || []).forEach(id => {
+      const cb = document.querySelector(`input[onchange*="'${id}'"]`);
+      setReactivate(id, true);
+    });
+  } catch(e) {}
+}
+
+
+function exportJSON() {
+  const data = {
+    proposed: proposedPins.map(p => ({ name: p.name, lat: p.lat, lon: p.lon })),
+    reactivate: [...reactivateSet]
+  };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type:'application/json'}));
+  a.download = 'hohonu_oahu_deployment_pins.json';
+  a.click();
+}
+
+function importJSON(input) {
+  const file = input.files[0]; if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      // Clear existing
+      [...proposedPins].forEach((_, i) => map.removeLayer(proposedPins[i].marker));
+      proposedPins.length = 0;
+      reactivateSet.clear();
+      inactiveMarkers.forEach(m => m.marker.setIcon(makeIcon(dotSVG('#1565C0'))));
+      // Load new
+      (data.proposed || []).forEach(p => {
+        const m = L.marker([p.lat, p.lon], { icon: makeIcon(dotSVG('#E65100', 8)) })
+          .bindPopup(`<span class="pop-badge" style="background:#E65100">Proposed Deployment</span>
+            <div class="pop-title">${p.name}</div>
+            <div class="pop-coords">${p.lat.toFixed(5)}, ${p.lon.toFixed(5)}</div>`);
+        m.addTo(layers.proposed);
+        proposedPins.push({ name: p.name, lat: p.lat, lon: p.lon, marker: m });
+      });
+      (data.reactivate || []).forEach(id => setReactivate(id, true));
+      syncProposedCount();
+      savePins();
+      renderList();
+      document.getElementById('exportRow').classList.toggle('show', proposedPins.length > 0 || reactivateSet.size > 0);
+    } catch(err) { alert('Could not load file — make sure it\'s a valid Hohonu pins JSON.'); }
+  };
+  reader.readAsText(file);
+  input.value = '';
+}
+
+function exportCSV() {
+  const rows = ['Name,Latitude,Longitude',
+    ...proposedPins.map(p => `"${p.name}",${p.lat.toFixed(6)},${p.lon.toFixed(6)}`)];
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rows.join('\n')], {type:'text/csv'}));
+  a.download = 'hohonu_proposed_deployments.csv';
+  a.click();
+}
+
+renderList();
+loadSavedPins();
+_saveReady = true;
+</script>
+</body>
+</html>
